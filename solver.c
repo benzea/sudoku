@@ -212,7 +212,7 @@ color_blocks(vector *page, vector exactly_one_number) {
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ALL(first_block, BLOCK);
     SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 9);
+    SET_VECTOR_ALL(third_block, BLOCK << 6);
 
     #undef BLOCK
 
@@ -306,8 +306,8 @@ find_determined_block(vector *page, vector *mask) {
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ALL(first_block, BLOCK);
     SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 9);
-    
+    SET_VECTOR_ALL(third_block, BLOCK << 6);
+
     #undef BLOCK
 
     // third block
@@ -365,8 +365,8 @@ find_determined_column(vector *page, vector *mask) {
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ALL(first_block, BLOCK);
     SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 9);
-    
+    SET_VECTOR_ALL(third_block, BLOCK << 6);
+
     #undef BLOCK
 
     // third block
