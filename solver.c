@@ -202,7 +202,7 @@ color_blocks(vector *page, vector exactly_one_number) {
     uvector mask;
     vector numbers = vec_and(*page, exactly_one_number);
 
-    #define BLOCK 7 + (7 << 9) + (7 << 18)
+    #define BLOCK (7 + (7 << 9) + (7 << 18))
 
     vector zero;
     vector first_block;
@@ -225,7 +225,6 @@ color_blocks(vector *page, vector exactly_one_number) {
 
 }
 
-#if 1
 static inline void
 find_determined_line(vector *page, vector *mask) {
     // if its exactly one bit in a line, copy it into the mask
@@ -285,9 +284,9 @@ static inline void
 find_determined_block(vector *page, vector *mask) {
     // if its exactly one bit in a block, copy it into the mask
     // if there's more than one, don't
-    
+
     vector p;
-    
+
     vector zero;
     vector one;
     SET_VECTOR_ZERO(zero);
@@ -296,13 +295,13 @@ find_determined_block(vector *page, vector *mask) {
     vector one_or_more_bits_set;
     vector more_than_one_bits_set;
     vector exactly_one_bit_set;
-    
+
     vector first_block;
     vector second_block;
     vector third_block;
 
-    #define BLOCK 7 + (7 << 9) + (7 << 18)
-    
+    #define BLOCK (7 + (7 << 9) + (7 << 18))
+
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ALL(first_block, BLOCK);
     SET_VECTOR_ALL(second_block, BLOCK << 3);
@@ -398,7 +397,13 @@ find_determined_column(vector *page, vector *mask) {
 
 }
 
-#endif
+static inline int
+sudoku_still_valid(sudoku* s) {
+    // test wether no commited numbers exclude each other
+
+    return 1;
+}
+
 
 static inline int
 unique_number_in_field(sudoku* s)
@@ -417,8 +422,9 @@ void
 sudoku_set_all(sudoku *s)
 {
     for (int i = 0; i < 9; i++) {
-        SET_VECTOR_ALL(s->pages[i].v, 0xffffffff);
-    }
+        SET_VECTOR_ALL(s->pages[i].v, 0x07ffffff);
+        //SET_VECTOR_ALL(s->pages[i].v, 0xffffffff);
+   }
 }
 
 sudoku*
@@ -449,17 +455,39 @@ sudoku_free(sudoku* s)
 int
 sudoku_solve(sudoku* s)
 {
+    for (long int x = 0; x < 10000; x++) {
+
     update_count(s);
 
-    color_lines(&s->pages[2].v, s->exactly_one_number.v);
+    for (int i = 0; i < 9; i++) {
+        color_lines(&s->pages[i].v, s->exactly_one_number.v);
+        color_columns(&s->pages[i].v, s->exactly_one_number.v);
+        color_blocks(&s->pages[i].v, s->exactly_one_number.v);
+    }
 
 
     //color_columns(&s->pages[2].v, s->exactly_one_number.v);
     //color_blocks(&s->pages[2].v, s->exactly_one_number.v);
-    
+
     vector mask;
-    find_determined_line(&s->pages[2].v, &mask);
-    VEC_PRINT(mask);
+    for (int i = 0; i < 9; i++) {
+        find_determined_line(&s->pages[i].v, &mask);
+        for (int j = 0; j < 9; j++) {
+            if (j != i)
+                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+        }
+
+        find_determined_block(&s->pages[i].v, &mask);
+        for (int j = 0; j < 9; j++) {
+            if (j != i)
+                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+        }
+    }
+    
+
+    }
+
+
 #if 0
     while (1) {
         if (!unique_number_in_field(s))
@@ -509,7 +537,7 @@ sudoku_set_field(sudoku* s, int x, int y, int value)
     mask.w[1] = 0;
     mask.w[2] = 0;
     mask.w[3] = 0;
-    SET_PIXEL(mask.w, x-1, y-1);
+    SET_PIXEL(mask.w, y-1, x-1);
 
     clear_fields(s, mask.v);
     set_fields(s, mask.v, value);
