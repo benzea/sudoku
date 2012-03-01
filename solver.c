@@ -78,9 +78,11 @@ sudoku_print(sudoku* s)
     }
 }
 
-static inline void
+static inline int
 update_count(sudoku* s)
 {
+    vector mask;
+    SET_VECTOR_ONES(mask, 27);
     SET_VECTOR_ZERO(s->exactly_one_number.v);
     SET_VECTOR_ZERO(s->more_than_one_number.v);
 
@@ -90,7 +92,14 @@ update_count(sudoku* s)
         s->more_than_one_number.v = _mm_or_si128(s->more_than_one_number.v, overflow);
         s->exactly_one_number.v = _mm_or_si128(s->exactly_one_number.v, s->pages[i].v);
     }
+
+    // if there is one bit missing in s->exactly_one_number now, it's not valid anymore...
+    uvector valid;
+    valid.v = _mm_cmpeq_epi32(s->exactly_one_number.v, mask);
+    if (!valid.w[0] || !valid.w[1] || !valid.w[2]) return 0;
+
     s->exactly_one_number.v = _mm_andnot_si128(s->more_than_one_number.v, s->exactly_one_number.v);
+    return 1;
 }
 
 static inline void
@@ -439,7 +448,8 @@ sudoku_solve(sudoku* s)
 {
     for (long int x = 0; x < 10000; x++) {
 
-    update_count(s);
+    if (!update_count(s)) // its not valid anymore
+        return 0;
 
     for (int i = 0; i < 9; i++) {
         color_lines(&s->pages[i].v, s->exactly_one_number.v);
