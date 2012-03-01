@@ -38,9 +38,9 @@ main(int argc, char **argv)
 
     sudoku_solve(s);
 
-    printf("\nSolved:\n");
+    //printf("\nSolved:\n");
 
-    sudoku_print(s);
+    //sudoku_print(s);
 
     return 0;
 }

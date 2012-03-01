@@ -476,6 +476,54 @@ sudoku_solve(sudoku* s)
 
     }
 
+    vector zero;
+    vector one;
+
+    SET_VECTOR_ZERO(zero);
+    SET_VECTOR_ONES(one, 1);
+
+    uvector p;
+    vector q;
+
+    p.v = vec_andnot((s->more_than_one_number.v - one), (s->more_than_one_number.v));
+    // if there was at least one bit set, the lowest one is left, all others are unset (in each section)
+
+    if (!(p.w[0] || p.w[1] || p.w[2])) {
+        printf("Solved:\n");
+        sudoku_print(s);
+        printf("\n");
+        return 1;
+    }
+
+    p.w[3] = 0; // is there a better way???
+    q = vec_cmpgt(p.v, zero);
+    q = vec_andnot(vec_shuffle(q, 3, 0, 1, 3), q);
+    q = vec_andnot(vec_shuffle(q, 3, 3, 0, 3), q);
+    q = vec_and(p.v, q);
+    // now only the first section with one bit set is left (in q)
+
+    sudoku* t;
+    t = sudoku_copy(s);
+    int mind[9];
+    for (int i = 0; i < 9; i++) {
+        p.v = vec_and(q, t->pages[i].v);
+        mind[i] = (p.w[0] || p.w[1] || p.w[2]);
+        t->pages[i].v = vec_andnot(q, t->pages[i].v);
+    }
+
+    sudoku* u;
+    for (int i = 0; i < 9; i++) {
+        if (mind[i]) {
+            u = sudoku_copy(t);
+            u->pages[i].v = vec_or(q, u->pages[i].v);
+            sudoku_solve(u);
+            sudoku_free(u);
+        }
+    }
+
+    sudoku_free(t);
+
+
 
 #if 0
     while (1) {
