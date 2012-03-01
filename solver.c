@@ -341,60 +341,42 @@ find_determined_block(vector *page, vector *mask) {
 
 static inline void
 find_determined_column(vector *page, vector *mask) {
-    // if its exactly one bit in a block, copy it into the mask
+    // if its exactly one bit in a column, copy it into the mask
     // if there's more than one, don't
-    
-    vector p;
-    
-    vector zero;
-    vector one;
-    SET_VECTOR_ZERO(zero);
-    SET_VECTOR_ONES(one, 1);
 
-    vector one_or_more_bits_set;
     vector more_than_one_bits_set;
-    vector exactly_one_bit_set;
-    
-    vector first_block;
-    vector second_block;
-    vector third_block;
+    SET_VECTOR_ZERO(more_than_one_bits_set);
+    vector one_or_more_bits_set = *page;
 
-    #define BLOCK 7 + (7 << 9) + (7 << 18)
-    
-    SET_VECTOR_ZERO(zero);
-    SET_VECTOR_ALL(first_block, BLOCK);
-    SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 6);
+    vector p;
 
-    #undef BLOCK
+    p = vec_shift_left(*page, 9);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    // third block
-    p = vec_and(*page, third_block);
+    p = vec_shift_left(*page, 18);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    one_or_more_bits_set = vec_cmpgt(p, zero);
-    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
-    exactly_one_bit_set = vec_andnot(more_than_one_bits_set, one_or_more_bits_set);
+    p = vec_shift_right(*page, 9);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    *mask = vec_and(p, exactly_one_bit_set);
+    p = vec_shift_right(*page, 18);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    // second block
-    p = vec_and(*page, second_block);
+    p = vec_shuffle(one_or_more_bits_set, 1, 2, 0, 3);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_shuffle(more_than_one_bits_set, 1, 2, 0, 3));
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    one_or_more_bits_set = vec_cmpgt(p, zero);
-    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
-    exactly_one_bit_set = vec_andnot(more_than_one_bits_set, one_or_more_bits_set);
+    p = vec_shuffle(one_or_more_bits_set, 1, 2, 0, 3);
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_shuffle(more_than_one_bits_set, 1, 2, 0, 3));
+    more_than_one_bits_set = vec_or(more_than_one_bits_set, vec_and(one_or_more_bits_set, p));
+    one_or_more_bits_set = vec_or(one_or_more_bits_set, p);
 
-    *mask = vec_or(*mask, vec_and(p, exactly_one_bit_set));
-
-    // first block
-    p = vec_and(*page, first_block);
-
-    one_or_more_bits_set = vec_cmpgt(p, zero);
-    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
-    exactly_one_bit_set = vec_andnot(more_than_one_bits_set, one_or_more_bits_set);
-
-    *mask = vec_or(*mask, vec_and(p, exactly_one_bit_set));
-
+    *mask = vec_and(*mask, *page);
 }
 
 static inline int
@@ -482,6 +464,13 @@ sudoku_solve(sudoku* s)
             if (j != i)
                 s->pages[j].v = vec_andnot(mask, s->pages[j].v);
         }
+
+        find_determined_column(&s->pages[i].v, &mask);
+        for (int j = 0; j < 9; j++) {
+            if (j != i)
+                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+        }
+
     }
     
 
