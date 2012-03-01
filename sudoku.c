@@ -6,41 +6,40 @@ int
 main(int argc, char **argv)
 {
     sudoku* s = sudoku_create();
-    sudoku_set_field(s, 1, 1, 1);
-    sudoku_set_field(s, 1, 3, 4);
-    sudoku_set_field(s, 1, 5, 3);
-    sudoku_set_field(s, 1, 7, 9);
-    sudoku_set_field(s, 2, 2, 8);
-    sudoku_set_field(s, 2, 6, 5);
-    sudoku_set_field(s, 3, 4, 9);
-    sudoku_set_field(s, 3, 7, 3);
-    sudoku_set_field(s, 3, 9, 2);
-    sudoku_set_field(s, 4, 2, 5);
-    sudoku_set_field(s, 4, 3, 2);
-    sudoku_set_field(s, 4, 4, 6);
-    sudoku_set_field(s, 4, 9, 3);
-    sudoku_set_field(s, 5, 2, 3);
-    sudoku_set_field(s, 5, 8, 8);
-    sudoku_set_field(s, 5, 9, 4);
-    sudoku_set_field(s, 6, 1, 8);
-    sudoku_set_field(s, 6, 5, 9);
-    sudoku_set_field(s, 6, 8, 7);
-    sudoku_set_field(s, 7, 1, 5);
-    sudoku_set_field(s, 7, 2, 4);
-    sudoku_set_field(s, 7, 5, 6);
-    sudoku_set_field(s, 7, 6, 7);
-    sudoku_set_field(s, 8, 1, 2);
-    sudoku_set_field(s, 8, 7, 4);
-    sudoku_set_field(s, 9, 3, 1);
-    sudoku_set_field(s, 9, 6, 4);
+
+    char c;
+    char n[81];
+
+    while ((c = getchar()) != '\n') {};
+
+    for (int a = 0; a < 3; a++) {
+        for (int b = 0; b < 3; b++) {
+            for (int c = 0; c < 3; c++) {
+                for (int d = 0; d < 3; d++) {
+                    getchar();
+                    n[27 * a + 9 * b + 3 * c + d] = getchar();
+                }
+                if (c < 2) {
+                    getchar();
+                    getchar();
+                }
+            }
+            getchar();
+        }
+        if (a < 2) {
+            while ((c = getchar()) != '\n') {}
+        }
+    }
+
+    for (int i = 0; i < 81; i++) {
+        if (n[i] >= '1' && n[i] <= '9')
+            sudoku_set_field(s, i / 9 + 1, i % 9 + 1, n[i] - '0');
+        //putchar(n[i]);
+    }
 
     sudoku_print(s);
 
     sudoku_solve(s);
-
-    //printf("\nSolved:\n");
-
-    //sudoku_print(s);
 
     return 0;
 }
