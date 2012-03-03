@@ -19,10 +19,10 @@ main(int argc, char **argv)
     int solve_count = 10;
     sudoku* s = sudoku_create();
 
-    char c;
+    int c;
     char n[81];
 
-    while ((c = getchar()) != '\n') {};
+    do { c = getchar(); if (c == -1) return 1;} while (c != '\n');
 
     for (int a = 0; a < 3; a++) {
         for (int b = 0; b < 3; b++) {
@@ -39,7 +39,7 @@ main(int argc, char **argv)
             getchar();
         }
         if (a < 2) {
-            while ((c = getchar()) != '\n') {}
+            do { c = getchar(); if (c == -1) return 1;} while (c != '\n');
         }
     }
 
