@@ -37,7 +37,7 @@ struct _sudoku {
 };
 
 
-
+static inline int update_count(sudoku* s);
 static inline int unique_number_in_field(sudoku* s);
 static inline int unique_number_in_lcb(sudoku* s);
 
@@ -48,6 +48,41 @@ static inline void set_fields(sudoku* s, __m128i field_mask, int value);
 
 void
 sudoku_print(sudoku* s)
+{
+    int x, y, n;
+
+    update_count(s);
+
+    for (y = 0; y < 9; y++) {
+        /* For every line of pages. */
+        if ((y > 0) && (y % 3 == 0))
+            printf("-------+-------+-------\n");
+
+        for (x = 0; x < 9; x++) {
+            if ((x > 0) && (x % 3 == 0))
+                printf(" |");
+
+            /* Put a '.' into the field, if there are multiple possibilities */
+            printf(" ");
+            if (GET_PIXEL(s->more_than_one_number.w, x, y)) {
+                printf(".");
+            } else if (GET_PIXEL(s->exactly_one_number.w, x, y)) {
+                for (n = 0; n < 9; n++) {
+                    if (GET_PIXEL(s->pages[n].w, x, y))
+                        printf("%i", n + 1);
+                }
+            } else {
+                /* Impossible to fit anything. */
+                printf("X");
+            }
+        }
+        printf("\n");
+    }
+}
+
+
+void
+sudoku_print_full(sudoku* s)
 {
     int x, y, offset, n;
 

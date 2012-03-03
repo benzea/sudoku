@@ -9,6 +9,7 @@ void sudoku_set_all(sudoku *s);
 sudoku* sudoku_copy(sudoku* s);
 void sudoku_free(sudoku* s);
 void sudoku_print(sudoku* s);
+void sudoku_print_full(sudoku* s);
 
 int sudoku_solve(sudoku* s, sudoku_solved_callback cb, void *data);
 
