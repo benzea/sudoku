@@ -11,7 +11,7 @@
 //#define SET_VECTOR_ALL(a, v) while {  } do (0)
 //#define SET_VECTOR_ONE(a) a = VECTOR_ALL(1)
 /* OK, the setzero should not be needed, but otherwise the cmpeq is optimized away! */
-#define SET_VECTOR_ONES(a, count) do { a = _mm_setzero_si128(); a = _mm_cmpeq_epi32 (a, a);  a = _mm_srli_epi32(a, 32 - count);} while (0)
+#define SET_VECTOR_ONES(a, count) do { a = _mm_setzero_si128(); a = _mm_cmpeq_epi32 (a, a);  if (count < 32) a = _mm_srli_epi32(a, 32 - count);} while (0)
 
 
 #define GET_PIXEL(words, x, y) ((words[(y) / 3] >> ((x) + ((y) % 3)*9)) & 0x01)
@@ -78,45 +78,6 @@ sudoku_print(sudoku* s)
     }
 }
 
-static inline int
-update_count(sudoku* s)
-{
-    vector mask;
-    SET_VECTOR_ONES(mask, 27);
-    SET_VECTOR_ZERO(s->exactly_one_number.v);
-    SET_VECTOR_ZERO(s->more_than_one_number.v);
-
-    for (int i = 0; i < 9; i++)
-    {
-        __m128i overflow = _mm_and_si128(s->exactly_one_number.v, s->pages[i].v);
-        s->more_than_one_number.v = _mm_or_si128(s->more_than_one_number.v, overflow);
-        s->exactly_one_number.v = _mm_or_si128(s->exactly_one_number.v, s->pages[i].v);
-    }
-
-    // if there is one bit missing in s->exactly_one_number now, it's not valid anymore...
-    uvector valid;
-    valid.v = _mm_cmpeq_epi32(s->exactly_one_number.v, mask);
-    if (!valid.w[0] || !valid.w[1] || !valid.w[2]) return 0;
-
-    s->exactly_one_number.v = _mm_andnot_si128(s->more_than_one_number.v, s->exactly_one_number.v);
-    return 1;
-}
-
-static inline void
-clear_fields(sudoku* s, __m128i field_mask)
-{
-    for (int i = 0; i < 9; i++) {
-        s->pages[i].v = _mm_andnot_si128(field_mask, s->pages[i].v);
-    }
-}
-
-static inline void
-set_fields(sudoku* s, __m128i field_mask, int value)
-{
-    clear_fields(s, field_mask);
-    s->pages[value - 1].v = _mm_or_si128(field_mask, s->pages[value - 1].v);
-}
-
 // these work on the whole vector at once
 
 // 32bit subtraction a - b
@@ -151,6 +112,53 @@ set_fields(sudoku* s, __m128i field_mask, int value)
 // r[0] = a[o0]; r[1] = a[o1]; r[2] = a[o2]; r[3] = a[o3]
 #define vec_shuffle(a, o0, o1, o2, o3) _mm_shuffle_epi32(a, (o0) | ((o1) << 2) | ((o2) << 4) | ((o3) << 6))
 
+// a == b on 32 bit words
+#define vec_eq(a, b) _mm_cmpeq_epi32(a, b)
+
+// These need to have a "logical" value in the vector, ie. all ones in each word.
+#define vec_sudoku_any_true(a) ((_mm_movemask_epi8(a) & 0x0fff))
+#define vec_sudoku_all_true(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0fff)
+#define vec_sudoku_all_false(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0000)
+
+static inline int
+update_count(sudoku* s)
+{
+    vector mask;
+    SET_VECTOR_ONES(mask, 27);
+    SET_VECTOR_ZERO(s->exactly_one_number.v);
+    SET_VECTOR_ZERO(s->more_than_one_number.v);
+
+    for (int i = 0; i < 9; i++)
+    {
+        __m128i overflow = _mm_and_si128(s->exactly_one_number.v, s->pages[i].v);
+        s->more_than_one_number.v = _mm_or_si128(s->more_than_one_number.v, overflow);
+        s->exactly_one_number.v = _mm_or_si128(s->exactly_one_number.v, s->pages[i].v);
+    }
+
+    // if there is one bit missing in s->exactly_one_number now, it's not valid anymore...
+    vector valid;
+    valid = _mm_cmpeq_epi32(s->exactly_one_number.v, mask);
+    if (!vec_sudoku_all_true(valid))
+        return 0;
+
+    s->exactly_one_number.v = _mm_andnot_si128(s->more_than_one_number.v, s->exactly_one_number.v);
+    return 1;
+}
+
+static inline void
+clear_fields(sudoku* s, __m128i field_mask)
+{
+    for (int i = 0; i < 9; i++) {
+        s->pages[i].v = _mm_andnot_si128(field_mask, s->pages[i].v);
+    }
+}
+
+static inline void
+set_fields(sudoku* s, __m128i field_mask, int value)
+{
+    clear_fields(s, field_mask);
+    s->pages[value - 1].v = _mm_or_si128(field_mask, s->pages[value - 1].v);
+}
 
 static inline void
 color_lines(vector *page, vector exactly_one_number) {
@@ -208,7 +216,7 @@ color_columns(vector *page, vector exactly_one_number) {
 
 static inline void
 color_blocks(vector *page, vector exactly_one_number) {
-    uvector mask;
+    vector mask;
     vector numbers = vec_and(*page, exactly_one_number);
 
     #define BLOCK (7 + (7 << 9) + (7 << 18))
@@ -225,12 +233,12 @@ color_blocks(vector *page, vector exactly_one_number) {
 
     #undef BLOCK
 
-    mask.v = vec_and(first_block, vec_cmpgt(vec_and(first_block, numbers), zero));
-    mask.v = vec_or(mask.v, vec_and(second_block, vec_cmpgt(vec_and(second_block, numbers), zero)));
-    mask.v = vec_or(mask.v, vec_and(third_block, vec_cmpgt(vec_and(third_block, numbers), zero)));
+    mask = vec_and(first_block, vec_cmpgt(vec_and(first_block, numbers), zero));
+    mask = vec_or(mask, vec_and(second_block, vec_cmpgt(vec_and(second_block, numbers), zero)));
+    mask = vec_or(mask, vec_and(third_block, vec_cmpgt(vec_and(third_block, numbers), zero)));
 
-    mask.v = vec_andnot(exactly_one_number, mask.v);
-    *page = vec_andnot(mask.v, *page);
+    mask = vec_andnot(exactly_one_number, mask);
+    *page = vec_andnot(mask, *page);
 
 }
 
@@ -533,46 +541,6 @@ sudoku_solve(sudoku* s)
 
     sudoku_free(t);
 
-
-
-#if 0
-    while (1) {
-        if (!unique_number_in_field(s))
-            break;
-
-        if (!unique_number_in_lcb(s))
-            break;
-    }
-
-    if (!sudoku_solved(s)) {
-        sudoku backup = *s;
-        __m128i field_mask = get_mask_for_one_uncomplete_field(s);
-
-        for (int i = 0; i < 9; i++) {
-            __m128i tmp = _mm_and_ps(field_mask, s->pages[i].v));
-
-            /* Move logic into the upper 32bit */
-            tmp = _mm_hadd_epi16(tmp, tmp);
-            tmp = _mm_hadd_epi16(tmp, tmp);
-        
-            if (__mm_irgendwas_nicht_null(_mm_and_ps(field_mask, s->pages[i].v))) {
-                set_fields(s, field_mask, i+1);
-
-                if (sudoku_solve(s) {
-                    return 1;
-                }
-                *s = backup;
-            }
-        }
-        
-        return 0;
-    } else {
-        return 1;
-    }
-#endif
-
-    /* never reached */
-    //assert(0);
     return 0;
 }
 
