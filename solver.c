@@ -422,7 +422,10 @@ sudoku_set_all(sudoku *s)
 {
     for (int i = 0; i < 9; i++) {
         SET_VECTOR_ALL(s->pages[i].v, 0x07ffffff);
-        //SET_VECTOR_ALL(s->pages[i].v, 0xffffffff);
+
+        /* Set the last word to all zero */
+        s->pages[i].v = _mm_insert_epi16(s->pages[i].v, 0, 6);
+        s->pages[i].v = _mm_insert_epi16(s->pages[i].v, 0, 7);
    }
 }
 
