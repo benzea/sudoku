@@ -523,32 +523,38 @@ sudoku_solve(sudoku* s)
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ONES(one, 1);
 
-    uvector p;
+    vector p;
     vector q;
 
-    p.v = vec_andnot((s->more_than_one_number.v - one), (s->more_than_one_number.v));
+    /* It is guaranteed, that there is no empty field at this point. */
+
+    p = vec_andnot((s->more_than_one_number.v - one), (s->more_than_one_number.v));
     // if there was at least one bit set, the lowest one is left, all others are unset (in each section)
 
-    if (!(p.w[0] || p.w[1] || p.w[2])) {
+    /* Check whether there is no bit set anywhere. */
+    q = vec_cmpgt(p, zero);
+    if (vec_sudoku_all_false(q)) {
         printf("Solved:\n");
         sudoku_print(s);
         printf("\n");
         return 1;
     }
 
-    p.w[3] = 0; // is there a better way???
-    q = vec_cmpgt(p.v, zero);
+    /* We assume that the highest word is 0 here (see sudoku_set_all) */
+    //q = vec_cmpgt(p.v, zero); already done above
     q = vec_andnot(vec_shuffle(q, 3, 0, 1, 3), q);
     q = vec_andnot(vec_shuffle(q, 3, 3, 0, 3), q);
-    q = vec_and(p.v, q);
+    q = vec_and(p, q);
     // now only the first section with one bit set is left (in q)
 
     sudoku* t;
     t = sudoku_copy(s);
     int mind[9];
     for (int i = 0; i < 9; i++) {
-        p.v = vec_and(q, t->pages[i].v);
-        mind[i] = (p.w[0] || p.w[1] || p.w[2]);
+        p = vec_and(q, t->pages[i].v);
+        mind[i] = vec_sudoku_any_true(vec_cmpgt(p, zero));
+
+        /* Clear all pages where the bit is set */
         t->pages[i].v = vec_andnot(q, t->pages[i].v);
     }
 
@@ -556,6 +562,8 @@ sudoku_solve(sudoku* s)
     for (int i = 0; i < 9; i++) {
         if (mind[i]) {
             u = sudoku_copy(t);
+
+            /* Set one of the numbers again */
             u->pages[i].v = vec_or(q, u->pages[i].v);
             sudoku_solve(u);
             sudoku_free(u);
