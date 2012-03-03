@@ -3,8 +3,20 @@
 #include <stdio.h>
 
 int
+solved_cb(sudoku *s, int *data)
+{
+    *data -= 1;
+
+    sudoku_print(s);
+
+    /* Abort if *data is zero. */
+    return (*data == 0);
+}
+
+int
 main(int argc, char **argv)
 {
+    int solve_count = 10;
     sudoku* s = sudoku_create();
 
     char c;
@@ -37,9 +49,9 @@ main(int argc, char **argv)
         //putchar(n[i]);
     }
 
-    sudoku_print(s);
-
-    sudoku_solve(s);
+    if (sudoku_solve(s, (sudoku_solved_callback) &solved_cb, &solve_count)) {
+        printf("Not all solutions have been printed!\n");
+    }
 
     return 0;
 }

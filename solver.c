@@ -556,7 +556,7 @@ sudoku_free(sudoku* s)
 }
 
 int
-sudoku_solve(sudoku* s)
+sudoku_solve(sudoku* s, sudoku_solved_callback cb, void *data)
 {
     int changed;
 
@@ -638,10 +638,7 @@ sudoku_solve(sudoku* s)
     /* Check whether there is no bit set anywhere. */
     q = vec_cmpgt(p, zero);
     if (vec_sudoku_all_false(q)) {
-        printf("Solved:\n");
-        sudoku_print(s);
-        printf("\n");
-        return 1;
+        return cb(s, data);
     }
 
     /* We assume that the highest word is 0 here (see sudoku_set_all) */
@@ -665,12 +662,17 @@ sudoku_solve(sudoku* s)
     sudoku* u;
     for (int i = 0; i < 9; i++) {
         if (mind[i]) {
+            int abort;
             u = sudoku_copy(t);
 
             /* Set one of the numbers again */
             u->pages[i].v = vec_or(q, u->pages[i].v);
-            sudoku_solve(u);
+            abort = sudoku_solve(u, cb, data);
             sudoku_free(u);
+
+            if (abort) {
+                return abort;
+            }
         }
     }
 
