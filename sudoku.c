@@ -1,26 +1,68 @@
 
 #include "solver.h"
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <getopt.h>
+
+typedef struct {
+    int count;
+    int max_count;
+} solver;
 
 int
-solved_cb(sudoku *s, int *data)
+solved_cb(sudoku *s, solver *data)
 {
-    *data -= 1;
+    data->count += 1;
 
+    printf("Solution number %i:\n", data->count);
     sudoku_print(s);
+    printf("\n");
 
-    /* Abort if *data is zero. */
-    return (*data == 0);
+    /* Abort if the maximum count has been reached. */
+    return (data->count == data->max_count);
 }
 
 int
 main(int argc, char **argv)
 {
-    int solve_count = 10;
+    solver state;
     sudoku* s = sudoku_create();
+
+    state.max_count = 1;
+    state.count = 0;
 
     int c;
     char n[81];
+
+    while ((c = getopt (argc, argv, "c:")) != -1) {
+        char *end = NULL;
+        switch (c) {
+            case 'c':
+                state.max_count = strtol(optarg, &end, 10);
+                if (*end != '\0') {
+                    fprintf (stderr, "Option -c requires an integer argument.\n");
+                    return 1;
+                }
+                if (state.max_count < 0) {
+                    fprintf (stderr, "Argument for option -c should be larger than zero.\n");
+                    return 1;
+                }
+                break;
+            case '?':
+                if (optopt == 'c')
+                    fprintf (stderr, "Option -%c requires an integer argument.\n", optopt);
+                else if (isprint (optopt))
+                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf (stderr,
+                             "Unknown option character `\\x%x'.\n",
+                             optopt);
+
+                return 1;
+        }
+    }
 
     do { c = getchar(); if (c == -1) return 1;} while (c != '\n');
 
@@ -49,7 +91,7 @@ main(int argc, char **argv)
         //putchar(n[i]);
     }
 
-    if (sudoku_solve(s, (sudoku_solved_callback) &solved_cb, &solve_count)) {
+    if (sudoku_solve(s, (sudoku_solved_callback) &solved_cb, &state)) {
         printf("There may be more solutions than the ones printed!\n");
     }
 
