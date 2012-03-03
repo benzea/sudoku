@@ -457,45 +457,65 @@ sudoku_free(sudoku* s)
 int
 sudoku_solve(sudoku* s)
 {
-    for (long int x = 0; x < 10000; x++) {
+    int changed;
 
     if (!update_count(s)) // its not valid anymore
         return 0;
 
-    for (int i = 0; i < 9; i++) {
-        color_lines(&s->pages[i].v, s->exactly_one_number.v);
-        color_columns(&s->pages[i].v, s->exactly_one_number.v);
-        color_blocks(&s->pages[i].v, s->exactly_one_number.v);
-    }
+    do {
+        /* no_changes is all 1 if there was a change, and all zero if there was none.
+         * So and'ing it with a number, results the number or zero.
+         * Note: This works because every block needs to contain each number
+         *       more than one time */
+        vector no_changes;
+        changed = 0;
 
+        SET_VECTOR_ONES(no_changes, 32);
 
-    //color_columns(&s->pages[2].v, s->exactly_one_number.v);
-    //color_blocks(&s->pages[2].v, s->exactly_one_number.v);
+        for (int i = 0; i < 9; i++) {
+            no_changes = vec_and(no_changes, s->pages[i].v);
 
-    vector mask;
-    for (int i = 0; i < 9; i++) {
-        find_determined_line(&s->pages[i].v, &mask);
-        for (int j = 0; j < 9; j++) {
-            if (j != i)
-                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+            color_lines(&s->pages[i].v, s->exactly_one_number.v);
+            color_columns(&s->pages[i].v, s->exactly_one_number.v);
+            color_blocks(&s->pages[i].v, s->exactly_one_number.v);
+
+            no_changes = vec_eq(no_changes, s->pages[i].v);
         }
 
-        find_determined_block(&s->pages[i].v, &mask);
-        for (int j = 0; j < 9; j++) {
-            if (j != i)
-                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+        vector mask;
+        for (int i = 0; i < 9; i++) {
+            no_changes = vec_and(no_changes, s->pages[i].v);
+
+            find_determined_line(&s->pages[i].v, &mask);
+            for (int j = 0; j < 9; j++) {
+                if (j != i) {
+                    s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+                }
+            }
+
+            find_determined_block(&s->pages[i].v, &mask);
+            for (int j = 0; j < 9; j++) {
+                if (j != i) {
+                    s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+                }
+            }
+
+            find_determined_column(&s->pages[i].v, &mask);
+            for (int j = 0; j < 9; j++) {
+                if (j != i) {
+                    s->pages[j].v = vec_andnot(mask, s->pages[j].v);
+                }
+            }
+
+            no_changes = vec_eq(no_changes, s->pages[i].v);
         }
 
-        find_determined_column(&s->pages[i].v, &mask);
-        for (int j = 0; j < 9; j++) {
-            if (j != i)
-                s->pages[j].v = vec_andnot(mask, s->pages[j].v);
-        }
+        if (!update_count(s)) // its not valid anymore
+            return 0;
 
-    }
-    
+        changed = !vec_sudoku_all_true(no_changes);
 
-    }
+    } while (changed);
 
     vector zero;
     vector one;
