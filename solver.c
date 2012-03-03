@@ -369,11 +369,139 @@ find_determined_column(vector *page, vector *mask) {
     *mask = vec_and(*mask, *page);
 }
 
-static inline int
-sudoku_still_valid(sudoku* s) {
-    // test wether no commited numbers exclude each other
+static inline void
+valid_block(vector page, vector *valid)
+{
+    vector p;
 
-    return 1;
+    vector zero;
+    vector one;
+    BLOCK_CONSTANTS
+
+    SET_VECTOR_ZERO(zero);
+    SET_VECTOR_ONES(one, 1);
+
+    vector more_than_one_bits_set;
+
+    p = vec_and(page, first_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, second_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, third_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+}
+
+static inline void
+valid_line(vector page, vector *valid)
+{
+    vector p;
+
+    vector zero;
+    vector one;
+    LINE_CONSTANTS
+
+    SET_VECTOR_ZERO(zero);
+    SET_VECTOR_ONES(one, 1);
+
+    vector more_than_one_bits_set;
+
+    p = vec_and(page, first_line);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, second_line);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, third_line);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+}
+
+static inline void
+valid_column(vector page, vector *valid)
+{
+    /* Transform the columsn to blocks, then check those.
+     * There is probably a better solution to this ...
+     * This works because we do not care about where the wrong
+     * line is. */
+
+    vector shift_0;
+    vector shift_1;
+    vector shift_2;
+
+    #define TMP ((1 << 0) + (1 << 3) + (1 << 6) + (1 << 9))
+    #define BLK_LINE ((TMP << 0) | (TMP << 9) | (TMP << 18))
+    vector column_mask = _mm_set_epi32(0, BLK_LINE << 2, BLK_LINE << 1, BLK_LINE << 0);
+    #undef TMP
+    #undef BLK_LINE
+
+    shift_0 = vec_and(page, column_mask);
+    shift_1 = vec_and(page, vec_shift_right(column_mask, 1));
+    shift_2 = vec_and(page, vec_shift_right(column_mask, 2));
+
+    shift_1 = vec_shuffle(shift_1, 1, 2, 0, 3);
+    shift_2 = vec_shuffle(shift_2, 2, 0, 1, 3);
+
+    //shift_0 = vec_shift_left(shift_0, 0);
+    shift_1 = vec_shift_left(shift_1, 1);
+    shift_2 = vec_shift_left(shift_2, 2);
+
+    page = vec_or(shift_0, vec_or(shift_1, shift_2));
+
+    vector zero;
+    vector one;
+    vector first_block;
+    vector second_block;
+    vector third_block;
+
+    #define BLOCK (7 + (7 << 9) + (7 << 18))
+    first_block = _mm_set_epi32(0, BLOCK << 2, BLOCK << 1, BLOCK);
+    second_block = vec_shift_left(first_block, 3);
+    third_block = vec_shift_left(first_block, 6);
+
+    SET_VECTOR_ZERO(zero);
+    SET_VECTOR_ONES(one, 1);
+
+    vector p;
+    vector more_than_one_bits_set;
+
+    p = vec_and(page, first_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, second_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+
+    p = vec_and(page, third_block);
+    more_than_one_bits_set = vec_cmpgt(vec_and(p, vec_sub(p, one)), zero);
+    *valid = vec_andnot(more_than_one_bits_set, *valid);
+}
+
+static inline int
+check_valid(sudoku* s) {
+    // test wether no numbers exclude each other
+
+    vector valid;
+
+    SET_VECTOR_ONES(valid, 32);
+
+    for (int i = 0; i < 9; i++) {
+        vector masked_page;
+
+        masked_page = vec_and(s->pages[i].v, s->exactly_one_number.v);
+        valid_block(masked_page, &valid);
+        valid_line(masked_page, &valid);
+        valid_column(masked_page, &valid);
+    }
+
+    return vec_sudoku_all_true(valid);
 }
 
 
@@ -484,6 +612,9 @@ sudoku_solve(sudoku* s)
         }
 
         if (!update_count(s)) // its not valid anymore
+            return 0;
+
+        if (!check_valid(s))
             return 0;
 
         changed = !vec_sudoku_all_true(no_changes);
