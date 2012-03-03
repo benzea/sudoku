@@ -50,7 +50,7 @@ main(int argc, char **argv)
     }
 
     if (sudoku_solve(s, (sudoku_solved_callback) &solved_cb, &solve_count)) {
-        printf("Not all solutions have been printed!\n");
+        printf("There may be more solutions than the ones printed!\n");
     }
 
     return 0;
