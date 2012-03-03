@@ -426,10 +426,9 @@ valid_line(vector page, vector *valid)
 static inline void
 valid_column(vector page, vector *valid)
 {
-    /* Transform the columsn to blocks, then check those.
-     * There is probably a better solution to this ...
-     * This works because we do not care about where the wrong
-     * line is. */
+    /* Transform the colums to blocks, then check those.
+     * Note that the blocks are shifted. The first word is normal, the second
+     * is shifted by one bit, the third is shifted by two bits to the left. */
 
     vector shift_0;
     vector shift_1;
@@ -461,7 +460,9 @@ valid_column(vector page, vector *valid)
     vector third_block;
 
     #define BLOCK (7 + (7 << 9) + (7 << 18))
+    /* We use shifted blocks in the words. Note the endianness ... */
     first_block = _mm_set_epi32(0, BLOCK << 2, BLOCK << 1, BLOCK);
+    #undef BLOCK
     second_block = vec_shift_left(first_block, 3);
     third_block = vec_shift_left(first_block, 6);
 
