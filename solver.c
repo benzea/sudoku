@@ -120,6 +120,11 @@ sudoku_print(sudoku* s)
 #define vec_sudoku_all_true(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0fff)
 #define vec_sudoku_all_false(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0000)
 
+// Usefull constant vector definitions
+#define BLOCK_CONSTANTS vector first_block; vector second_block; vector third_block; SET_VECTOR_ALL(first_block, (7 + (7 << 9) + (7 << 18))); second_block = vec_shift_left(first_block, 3); third_block = vec_shift_left(first_block, 6); 
+#define LINE_CONSTANTS vector first_line; vector second_line; vector third_line; SET_VECTOR_ONES(first_line, 9); second_line = vec_shift_left(first_line, 9); third_line = vec_shift_left(first_line, 18);
+
+
 static inline int
 update_count(sudoku* s)
 {
@@ -166,16 +171,9 @@ color_lines(vector *page, vector exactly_one_number) {
     vector p = vec_and(*page, exactly_one_number);
 
     vector zero;
-    vector first_line;
-    vector second_line;
-    vector third_line;
+    LINE_CONSTANTS
 
     SET_VECTOR_ZERO(zero);
-    SET_VECTOR_ONES(first_line, 9);
-    SET_VECTOR_ONES(second_line, 18);
-    SET_VECTOR_ONES(third_line, 27);
-    third_line = vec_andnot(second_line, third_line);
-    second_line = vec_andnot(first_line, second_line);
 
     // cmpgt is true, when at least one bit is set greater than any bit in the
     // second line, ie in the third line
@@ -219,19 +217,11 @@ color_blocks(vector *page, vector exactly_one_number) {
     vector mask;
     vector numbers = vec_and(*page, exactly_one_number);
 
-    #define BLOCK (7 + (7 << 9) + (7 << 18))
-
     vector zero;
-    vector first_block;
-    vector second_block;
-    vector third_block;
+    BLOCK_CONSTANTS
 
     SET_VECTOR_ZERO(zero);
-    SET_VECTOR_ALL(first_block, BLOCK);
-    SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 6);
 
-    #undef BLOCK
 
     mask = vec_and(first_block, vec_cmpgt(vec_and(first_block, numbers), zero));
     mask = vec_or(mask, vec_and(second_block, vec_cmpgt(vec_and(second_block, numbers), zero)));
@@ -251,21 +241,13 @@ find_determined_line(vector *page, vector *mask) {
     
     vector zero;
     vector one;
-    vector first_line;
-    vector second_line;
-    vector third_line;
+    LINE_CONSTANTS
     vector one_or_more_bits_set;
     vector more_than_one_bits_set;
     vector exactly_one_bit_set;
 
     SET_VECTOR_ZERO(zero);
     SET_VECTOR_ONES(one, 1);
-
-    SET_VECTOR_ONES(first_line, 9);
-    SET_VECTOR_ONES(second_line, 18);
-    SET_VECTOR_ONES(third_line, 27);
-    third_line = vec_andnot(second_line, third_line);
-    second_line = vec_andnot(first_line, second_line);
 
     // third line
     p = vec_and(*page, third_line);
@@ -313,18 +295,9 @@ find_determined_block(vector *page, vector *mask) {
     vector more_than_one_bits_set;
     vector exactly_one_bit_set;
 
-    vector first_block;
-    vector second_block;
-    vector third_block;
-
-    #define BLOCK (7 + (7 << 9) + (7 << 18))
+    BLOCK_CONSTANTS
 
     SET_VECTOR_ZERO(zero);
-    SET_VECTOR_ALL(first_block, BLOCK);
-    SET_VECTOR_ALL(second_block, BLOCK << 3);
-    SET_VECTOR_ALL(third_block, BLOCK << 6);
-
-    #undef BLOCK
 
     // third block
     p = vec_and(*page, third_block);
