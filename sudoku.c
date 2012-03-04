@@ -14,14 +14,19 @@ typedef struct {
 int
 solved_cb(sudoku *s, solver *data)
 {
+    /* Abort if the maximum count has been reached already.
+     * We get one more solution, to see if there are more
+     * than the requested once available. */
+    if (data->count == data->max_count)
+        return 1;
+
     data->count += 1;
 
     printf("Solution number %i:\n", data->count);
     sudoku_print(s);
     printf("\n");
 
-    /* Abort if the maximum count has been reached. */
-    return (data->count == data->max_count);
+    return 0;
 }
 
 int
@@ -92,7 +97,7 @@ main(int argc, char **argv)
     }
 
     if (sudoku_solve(s, (sudoku_solved_callback) &solved_cb, &state)) {
-        printf("There may be more solutions than the ones printed!\n");
+        printf("There are more solutions than the ones printed!\n");
     }
 
     return 0;
