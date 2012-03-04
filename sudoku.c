@@ -75,15 +75,24 @@ main(int argc, char **argv)
         for (int b = 0; b < 3; b++) {
             for (int c = 0; c < 3; c++) {
                 for (int d = 0; d < 3; d++) {
-                    getchar();
+                    if (getchar() != ' ')
+                        return 1;
                     n[27 * a + 9 * b + 3 * c + d] = getchar();
                 }
                 if (c < 2) {
-                    getchar();
-                    getchar();
+                    if (getchar() != ' ')
+                        return 1;
+                    if (getchar() != '|')
+                        return 1;
                 }
             }
-            getchar();
+            while (1) {
+                c = getchar();
+                if (c == '\n')
+                    break;
+                if (c != ' ')
+                    return 1;
+            }
         }
         if (a < 2) {
             do { c = getchar(); if (c == -1) return 1;} while (c != '\n');
