@@ -5,17 +5,77 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 /* Internally an xor */
 #define SET_VECTOR_ZERO(a) a = _mm_setzero_si128()
-#define SET_VECTOR_ALL(a, v) a = _mm_set_epi32((v), (v), (v), (v))
+#define SET_VECTOR_ALL(a, v) a = _mm_set1_epi32((v))
 //#define SET_VECTOR_ALL(a, v) while {  } do (0)
 //#define SET_VECTOR_ONE(a) a = VECTOR_ALL(1)
 /* OK, the setzero should not be needed, but otherwise the cmpeq is optimized away! */
 #define SET_VECTOR_ONES(a, count) do { a = _mm_setzero_si128(); a = _mm_cmpeq_epi32 (a, a);  if (count < 32) a = _mm_srli_epi32(a, 32 - count);} while (0)
 
+// these work on the whole vector at once
 
-#define GET_PIXEL(words, x, y) ((words[(y) / 3] >> ((x) + ((y) % 3)*9)) & 0x01)
-#define SET_PIXEL(words, x, y) (words[(y) / 3] = (words[(y) / 3] | (0x01 << ((x) + ((y) % 3)*9))))
+// 32bit subtraction a - b
+#define vec_sub(a, b) _mm_sub_epi32(a, b)
+
+// 32bit addition a + b
+#define vec_add(a, b) _mm_add_epi32(a, b)
+
+// and a & b
+#define vec_and(a, b) _mm_and_si128(a, b)
+
+// or a | b
+#define vec_or(a, b) _mm_or_si128(a, b)
+
+// andnot (~a) & b
+#define vec_andnot(a, b) _mm_andnot_si128(a, b)
+
+// xor a ^ b
+#define vec_xor(a, b) _mm_xor_si128(a, b)
+
+// these work on each 32-bit integer seperatly 
+
+// cmpgt a > b
+#define vec_cmpgt(a, b) _mm_cmpgt_epi32(a, b)
+
+// a >> count
+#define vec_shift_right(a, count) _mm_srli_epi32(a, count)
+
+// a << count
+#define vec_shift_left(a, count) _mm_slli_epi32(a, count)
+
+// r[0] = a[o0]; r[1] = a[o1]; r[2] = a[o2]; r[3] = a[o3]
+#define vec_shuffle(a, o0, o1, o2, o3) _mm_shuffle_epi32(a, (o0) | ((o1) << 2) | ((o2) << 4) | ((o3) << 6))
+
+// a == b on 32 bit words
+#define vec_eq(a, b) _mm_cmpeq_epi32(a, b)
+
+// These need to have a "logical" value in the vector, ie. all ones in each word.
+#define vec_sudoku_any_true(a) ((_mm_movemask_epi8(a) & 0x0fff))
+#define vec_sudoku_all_true(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0fff)
+#define vec_sudoku_all_false(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0000)
+
+// Usefull constant vector definitions
+#define BLOCK_CONSTANTS vector first_block; vector second_block; vector third_block; SET_VECTOR_ALL(first_block, (7 + (7 << 9) + (7 << 18))); second_block = vec_shift_left(first_block, 3); third_block = vec_shift_left(first_block, 6); 
+#define LINE_CONSTANTS vector first_line; vector second_line; vector third_line; SET_VECTOR_ONES(first_line, 9); second_line = vec_shift_left(first_line, 9); third_line = vec_shift_left(first_line, 18);
+
+
+#define GET_PIXEL(v, x, y) (_mm_movemask_epi8(vec_shift_left(v, 31 - ((x) + 9*((y) % 3)))) & (1 << (((y) / 3)*4)+3))
+/* SET_PIXEL is not very nice ... someone has a good idea? */
+#define SET_PIXEL(v, x, y) do { \
+    int bit_pos = (x) + ((y) % 3) * 9; \
+    vector tmp; \
+    tmp = _mm_cvtsi32_si128(1 << bit_pos); \
+    if (((y) / 3) == 1) { \
+        tmp = vec_shuffle(tmp, 1, 0, 1, 1); \
+    } else if (((y) / 3) == 2) { \
+        tmp = vec_shuffle(tmp, 1, 1, 0, 1); \
+    } \
+    v = vec_or(v, tmp); \
+} while (0)
 
 #define VEC_PRINT(vec) do { uvector __tmp; __tmp.v = vec; printf("%08x %08x %08x %08x\n", __tmp.w[0], __tmp.w[1], __tmp.w[2], __tmp.w[3]); } while (0)
 
@@ -64,11 +124,11 @@ sudoku_print(sudoku* s)
 
             /* Put a '.' into the field, if there are multiple possibilities */
             printf(" ");
-            if (GET_PIXEL(s->more_than_one_number.w, x, y)) {
+            if (GET_PIXEL(s->more_than_one_number.v, x, y)) {
                 printf(".");
-            } else if (GET_PIXEL(s->exactly_one_number.w, x, y)) {
+            } else if (GET_PIXEL(s->exactly_one_number.v, x, y)) {
                 for (n = 0; n < 9; n++) {
-                    if (GET_PIXEL(s->pages[n].w, x, y))
+                    if (GET_PIXEL(s->pages[n].v, x, y))
                         printf("%i", n + 1);
                 }
             } else {
@@ -95,7 +155,7 @@ sudoku_print_full(sudoku* s)
             for (x = 0; x < 9; x++) {
                 /* Each number on the line */
                 for (n = offset; n < offset + 3; n++) {
-                    if (GET_PIXEL(s->pages[n].w, x, y)) {
+                    if (GET_PIXEL(s->pages[n].v, x, y)) {
                         printf("%i", n+1);
                     } else {
                         printf(" ");
@@ -112,53 +172,6 @@ sudoku_print_full(sudoku* s)
             printf("\n-------------   -------------   -------------\n");
     }
 }
-
-// these work on the whole vector at once
-
-// 32bit subtraction a - b
-#define vec_sub(a, b) _mm_sub_epi32(a, b)
-
-// 32bit addition a + b
-#define vec_add(a, b) _mm_add_epi32(a, b)
-
-// and a & b
-#define vec_and(a, b) _mm_and_si128(a, b)
-
-// or a | b
-#define vec_or(a, b) _mm_or_si128(a, b)
-
-// andnot (~a) & b
-#define vec_andnot(a, b) _mm_andnot_si128(a, b)
-
-// xor a ^ b
-#define vec_xor(a, b) _mm_xor_si128(a, b)
-
-// these work on each 32-bit integer seperatly 
-
-// cmpgt a > b
-#define vec_cmpgt(a, b) _mm_cmpgt_epi32(a, b)
-
-// a >> count
-#define vec_shift_right(a, count) _mm_srli_epi32(a, count)
-
-// a << count
-#define vec_shift_left(a, count) _mm_slli_epi32(a, count)
-
-// r[0] = a[o0]; r[1] = a[o1]; r[2] = a[o2]; r[3] = a[o3]
-#define vec_shuffle(a, o0, o1, o2, o3) _mm_shuffle_epi32(a, (o0) | ((o1) << 2) | ((o2) << 4) | ((o3) << 6))
-
-// a == b on 32 bit words
-#define vec_eq(a, b) _mm_cmpeq_epi32(a, b)
-
-// These need to have a "logical" value in the vector, ie. all ones in each word.
-#define vec_sudoku_any_true(a) ((_mm_movemask_epi8(a) & 0x0fff))
-#define vec_sudoku_all_true(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0fff)
-#define vec_sudoku_all_false(a) ((_mm_movemask_epi8(a) & 0x0fff) == 0x0000)
-
-// Usefull constant vector definitions
-#define BLOCK_CONSTANTS vector first_block; vector second_block; vector third_block; SET_VECTOR_ALL(first_block, (7 + (7 << 9) + (7 << 18))); second_block = vec_shift_left(first_block, 3); third_block = vec_shift_left(first_block, 6); 
-#define LINE_CONSTANTS vector first_line; vector second_line; vector third_line; SET_VECTOR_ONES(first_line, 9); second_line = vec_shift_left(first_line, 9); third_line = vec_shift_left(first_line, 18);
-
 
 static inline int
 update_count(sudoku* s)
@@ -720,15 +733,17 @@ sudoku_solve(sudoku* s, sudoku_solved_callback cb, void *data)
 void
 sudoku_set_field(sudoku* s, int x, int y, int value)
 {
-    uvector mask;
-    mask.w[0] = 0;
-    mask.w[1] = 0;
-    mask.w[2] = 0;
-    mask.w[3] = 0;
-    SET_PIXEL(mask.w, y-1, x-1);
+    vector mask;
 
-    clear_fields(s, mask.v);
-    set_fields(s, mask.v, value);
+    x = MIN(9, MAX(1, x));
+    y = MIN(9, MAX(1, y));
+    value = MIN(9, MAX(1, value));
+
+    SET_VECTOR_ZERO(mask);
+    SET_PIXEL(mask, y-1, x-1);
+
+    clear_fields(s, mask);
+    set_fields(s, mask, value);
 }
 
 
