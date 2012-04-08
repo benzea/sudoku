@@ -63,7 +63,7 @@
 #define LINE_CONSTANTS vector first_line; vector second_line; vector third_line; SET_VECTOR_ONES(first_line, 9); second_line = vec_shift_left(first_line, 9); third_line = vec_shift_left(first_line, 18);
 
 
-#define GET_PIXEL(v, x, y) (_mm_movemask_epi8(vec_shift_left(v, 31 - ((x) + 9*((y) % 3)))) & (1 << (((y) / 3)*4)+3))
+#define GET_PIXEL(v, x, y) (_mm_movemask_epi8(vec_shift_left(v, 31 - ((x) + 9*((y) % 3)))) & (1 << ((((y) / 3)*4)+3)))
 /* SET_PIXEL is not very nice ... someone has a good idea? */
 #define SET_PIXEL(v, x, y) do { \
     int bit_pos = (x) + ((y) % 3) * 9; \
